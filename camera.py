@@ -2,39 +2,40 @@ from queue import LifoQueue
 import cv2
 import threading
 import random
+from threading import Lock
 
-class CameraImageQueue(threading.Thread):
+class Camera(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
-        self.min_size = 10
-        self.max_size = 100
+        self.capture = cv2.VideoCapture(0)
         self.frame_count = 0
-        self.q = LifoQueue(self.max_size)
+        self.latest = (0, 0)
 
     def run(self):
-        reader = cv2.VideoCapture(0)
-        while reader.isOpened():
-            retval, frame = reader.read()
+        while self.capture.isOpened():
+            retval, frame = self.capture.read()
             self.frame_count += 1
-            self.q.put((frame, self.frame_count))
+            self.latest = (frame, self.frame_count)
+
+        return 0
 
     def get(self):
-        o = self.q.get()
-        self.q.queue.clear()
-        return o
+        return self.latest
+
 
 def main():
-    q = CameraImageQueue()
+    q = Camera()
     q.start()
-    while True:
+
+    for i in range(1000):
         image, frame_count = q.get()
-        delay = random.randint(10, 300)
+        delay = random.randint(10, 100)
         processed_image = dummy(image, delay)
-        print (f"Delay {delay} frame {frame_count} size {q.q.qsize()}" )
         cv2.imshow("window", processed_image)
 
 def dummy(frame, t):
     cv2.waitKey(t)
+    frame = cv2.flip(frame, 1)
     return frame
 
 if __name__ == "__main__":
