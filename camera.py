@@ -1,27 +1,25 @@
-from queue import LifoQueue
 import cv2
 import threading
 import random
-from threading import Lock
+from queue import LifoQueue
 
 class Camera(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.capture = cv2.VideoCapture(0)
         self.frame_count = 0
-        self.latest = (0, 0)
+        self.q = LifoQueue(1000)
 
     def run(self):
         while self.capture.isOpened():
             retval, frame = self.capture.read()
             self.frame_count += 1
-            self.latest = (frame, self.frame_count)
-
-        return 0
+            self.q.put((frame, self.frame_count))
 
     def get(self):
-        return self.latest
-
+        o = self.q.get()
+        self.q.queue.clear()
+        return o
 
 def main():
     q = Camera()
@@ -29,7 +27,8 @@ def main():
 
     for i in range(1000):
         image, frame_count = q.get()
-        delay = random.randint(10, 100)
+        delay = random.randint(10, 10)
+        print (f"delay {delay} frame {frame_count}")
         processed_image = dummy(image, delay)
         cv2.imshow("window", processed_image)
 
