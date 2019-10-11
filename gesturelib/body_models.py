@@ -5,6 +5,8 @@ from pose_engine import Pose, PersonSegmentation
 
 pose_detection_tpu = "models/posenet_mobilenet_v1_075_481_641_quant_decoder_edgetpu.tflite"
 segmentation_cpu = "models/deeplabv3_257_mv_gpu.tflite"
+palm_cpu = "models/palm_detection_without_custom_op.tflite"
+palm_anchors = "models/anchors.csv"
 
 GREEN = (0,255,0)
 RED = (0,0,255)
@@ -91,7 +93,6 @@ class PoseLib:
         pose_flag, pose1_kp, pose1_scores = False, None, None
         pose_image_int = original_image_int
         pose_image_int = cv2.resize(pose_image_int, (self.width, self.height))
-        cv2.imshow("processing", pose_image_int)
         poses_kp, poses_scores = self.pose.detect(pose_image_int)
 
         if poses_kp is not None and len(poses_kp) > 0:
@@ -137,9 +138,9 @@ class PoseLib:
         return image
 
     def demo(self, cam):
-        import pyautogui
-        controller = 'right wrist'
-        controller_index = self.nodes[controller]
+#        import pyautogui
+#        controller = 'right wrist'
+#        controller_index = self.nodes[controller]
         cam.start()
         for i in tqdm(range(10000)):
             frame, count = cam.get()
@@ -151,12 +152,12 @@ class PoseLib:
 
 
             if keypoints is not None:
-                print(keypoints[controller_index])
-                x,y = keypoints[controller_index]
-                w,h = pyautogui.size()
-                x = (x / self.width) * w
-                y = (y / self.height) * h
-                pyautogui.moveTo(x,y)
+#                print(keypoints[controller_index])
+#                x,y = keypoints[controller_index]
+#                w,h = pyautogui.size()
+#                x = (x / self.width) * w
+#                y = (y / self.height) * h
+#                pyautogui.moveTo(x,y)
                 scaled_keypoints = self.rescale_keypoints(keypoints, frame.shape)
                 pose = self.draw(frame, scaled_keypoints)
                 #skel = self.create_keypoints_image(keypoints)
@@ -187,19 +188,76 @@ class PersonSegLib:
             cv2.waitKey(10)
 
 
+class PalmLib:
+    def __init__(self):
+        self.palm_detector = Palm(palm_cpu, palm_anchors)
+        self.width = self.palm_detector.image_width
+        self.height = self.palm_detector.image_height
+
+    def detect(self, image):
+        image = np.asarray(image, dtype=np.float32)
+        image = cv2.resize(image, (self.height, self.width))
+        cv2.imshow("processing", image)
+        image = 2 * ((image / 255.0) - 0.5)
+        keypoints = self.palm_detector.detect(image)
+        return keypoints
+
+    def draw(self, image, keypoints):
+        if keypoints is not None:
+            for point in keypoints:
+                x, y = point
+                x, y = int(x), int(y)
+                cv2.circle(image, (x, y), 3, GREEN, -1)
+        return image
+
+    def rescale_keypoints(self, keypoints, shape):
+        scale_x = shape[1] / self.width
+        scale_y = shape[0] / self.height
+        keypoints = [(int(i[0] * scale_x), int(i[1] * scale_y)) for i in keypoints]
+        return keypoints
+
+    def demo(self, cam):
+        cam.start()
+        for i in tqdm(range(10000)):
+            frame, count = cam.get()
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = crop(frame, self.width, self.height)
+            keypoints, handflag = self.detect(frame)
+            if handflag:
+                keypoints = self.rescale_keypoints(keypoints, frame.shape)
+                self.draw(frame, keypoints)
+
+            cv2.imshow("test", frame)
+            cv2.waitKey(10)
+
+
+
 if __name__ == "__main__":
-    import sys
     from camera import Camera
     from tqdm import tqdm
+    import argparse
 
-    path = sys.argv[1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", default=None, required=True)
+    parser.add_argument("--name", default=None, required=True)
 
-    if str.isdigit(path):
-        path = int(path)
+    args = parser.parse_args()
+    path = args.path
+    
+    if str.isdigit(args.path):
+        path = int(args.path)
 
     cam = Camera(path, 30)
-    # seg = PersonSegLib()
-    # seg.demo(cam)
 
-    body = PoseLib()
-    body.demo(cam)
+
+    if "seg" in args.name:
+        seg = PersonSegLib()
+        seg.demo(cam)
+
+    if "pose" in args.name:
+        body = PoseLib()
+        body.demo(cam)
+
+    if "palm" in args.name or "hand" in args.name:
+        palm = PalmLib()
+        palm.demo(cam)
