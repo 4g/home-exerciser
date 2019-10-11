@@ -58,13 +58,14 @@ class PersonSegmentation(TFLiteModel):
     def __init__(self, model_path):
         self.load_model(model_path)
 
-    def parse(self, image):
+    def detect(self, image):
         interpretation = self.get_model_output(image)
-        heatmap = interpretation[0][:, :, 15]
-        min = np.min(heatmap)
-        max = np.max(heatmap)
-        heatmap = (heatmap - min) / (max - min)
-        return heatmap
+        heatmap = interpretation[0]
+        personmap = heatmap[:,:,0] / (heatmap[:,:,15] + 0.1)
+        min = np.min(personmap)
+        max = np.max(personmap)
+        personmap= (personmap - min) / (max - min)
+        return personmap
 
 
 if __name__ == "__main__":

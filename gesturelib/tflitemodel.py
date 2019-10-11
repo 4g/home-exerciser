@@ -17,7 +17,6 @@ class TFLiteModel:
     def preprocess(self, image):
         image = cv2.resize(image, (self.height, self.width))
         image = (np.asarray(image, dtype=np.float32) - 127.5) / 127.5
-        image = image[:, :, ::-1]
         image = np.expand_dims(image, axis=0)
         return image
 
@@ -32,9 +31,6 @@ class TFLiteModel:
         return self.interpreter.get_tensor_details()
 
     def model_path(self):
-        return None
-
-    def render(self, image):
         return None
 
 if __name__ == "__main__":
